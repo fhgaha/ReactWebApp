@@ -1,23 +1,38 @@
 import axios from "axios";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import PostService from "./API/PostServce";
 import PostFilter from "./components/PostFilter";
 import PostForm from "./components/PostForm";
 import PostList from "./components/PostList";
 import MyButton from "./components/UI/button/MyButton";
 import MyInput from "./components/UI/input/MyInput";
+import Loader from "./components/UI/Loader/Loader";
 import MyModal from "./components/UI/MyModal/MyModal";
+import Pagination from "./components/UI/pagination/Pagination";
 import MySelect from "./components/UI/select/MySelect";
+import { useFetching } from "./hooks/useFetching";
 import { usePosts } from "./hooks/usePosts";
 import './styles/App.css';
+import { getPageCount, getPagesArray } from "./utils/pages";
 
 function App() {
   const [posts, setPosts] = useState([]);
   const [filter, setFilter] = useState({ sort: '', query: '' });
   const [modal, setModal] = useState(false);
+  const [totalPages, setTotalPages] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [page, setPage] = useState(1);
   const sortedAndSearchedPosts = usePosts(posts, filter.sort, filter.query);
 
+  const [fetchPosts, isPostsLoading, postError] = useFetching(async (limit, page) => {
+    const response = await PostService.getAll(limit, page);
+    setPosts(response.data);
+    const totalCount = response.headers['x-total-count'];
+    setTotalPages(getPageCount(totalCount, limit));
+  });
+
   useEffect(() => {
-    fetchPosts()
+    fetchPosts(limit, page)
   }, [])
 
   const createPost = (newPost) => {
@@ -29,14 +44,13 @@ function App() {
     setPosts(posts.filter(p => p.id !== post.id))
   }
 
-  async function fetchPosts() {
-    const response = await axios.get('https://jsonplaceholder.typicode.com/posts')
-    setPosts(response.data)
+  const changePage = (page) => {
+    setPage(page)
+    fetchPosts(limit, page)
   }
 
   return (
     <div className="App">
-      <MyButton onClick={fetchPosts}>get</MyButton>
       <MyButton style={{ marginTop: 30 }} onClick={() => setModal(true)}>
         Create post
       </MyButton>
@@ -48,10 +62,21 @@ function App() {
         filter={filter}
         setFilter={setFilter}
       />
-      <PostList remove={removePost} posts={sortedAndSearchedPosts} title='JS Posts' />
+      {postError &&
+        <h2>Error occured: ${postError}</h2>
+
+      }
+      {isPostsLoading
+        ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: '50px' }}><Loader /></div>
+        : <PostList remove={removePost} posts={sortedAndSearchedPosts} title='JS Posts' />
+      }
+      <Pagination
+        page={page}
+        changePage={changePage}
+        totalPages={totalPages}
+      />
     </div>
   );
 }
 
 export default App;
-
